@@ -1,0 +1,146 @@
+---
+title: "Serge- Coursera Machine Learning Project"
+author: "Serge Findling"
+date: "Friday, July 25, 2014"
+output: pdf_document
+---
+
+#Summary
+
+**Can data collected from personal activity recorders predict if physical excercises are performed correctly? This study finds that a predicting algorithm could achieve this objective.**
+
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: 
+http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+_Source: WLE dataset
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013._
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz38UsOUOBW
+
+# Data Preparation
+## Initialization
+This study used the caret library. In addition the doParallel library was used to accelerate the processing during th exploratory phase.
+
+```{r,echo=TRUE, warning=FALSE, message=FALSE}
+library(caret)
+library(doParallel)
+## For running in parralel on a 4 cores computer and get faster processing
+#registerDoParallel(cores=4)
+```
+
+
+## Data download
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+```{r}
+# File are expected to be in the working directory. Othwerise uncomment and adapt the nest instruction.
+# setwd("F:/Data/Sync/Copy/7 - Learning/Practical Machine Learning/Project")
+training<-read.csv("pml-training.csv")
+testing<-read.csv("pml-testing.csv")
+```
+
+
+## Cleaning data
+
+Many columns have mainly blank or NA cells. To avoid intense processing we remove those columns.First we replace all blanks by NA and then we remove the columns containing only NA.We also remove the column X that hold only sequence information.
+
+``` {r echo=TRUE}
+trainingA=training
+trainingA[trainingA==""]<-NA
+trainingB<-trainingA[, colSums(is.na(trainingA))==0]
+trainingC=trainingB
+trainingC$X <- NULL
+```
+
+# Model Selection
+We aim at predicting the variable "classe". Classe A corresponds to the specified execution of the exercise, while the other 4 classes B,C,D, and E correspond to common mistakes.
+
+After different trials with a limited sample, we found the **random forest model** to be the most the most promisingIn order of limiting the response time of this report, these exploratory processing is not included. 
+
+
+# Cross-validation
+We split our dataset into a training set to train our model and a test data set to validated the accuracy.
+We have created two models with different splits. 
+First model: split in 90% training and 10% for testing
+** Second model: split in 10% training and 90% for testing**
+
+The first model is computer intensive and takes a very long time to run. The second model is far faster while deliver a high level of accuracy.
+Only the second model is enabled. Model1 and Model2 can be switched by commenting and uncommenting.
+
+```{r,echo=TRUE}
+
+# inTrain <- createDataPartition(y=trainingC$classe, p=0.9, list=FALSE) #Model 1
+inTrain <- createDataPartition(y=trainingC$classe, p=0.1, list=FALSE)   #Model 2
+train <- trainingC[inTrain, ]
+test <- trainingC[-inTrain, ]
+# releasing unecessary object to free memory
+training=NULL
+trainingA=NULL
+trainingB=NULL
+trainingC=NULL
+```
+
+# Model Training
+```{r,echo=TRUE, cache=TRUE, results="hide", warning=FALSE, message=FALSE}
+modFit <- train(classe ~ .,data=train,method="rf")
+```
+
+# Model Evaluation
+```{r, echo=FALSE}
+modFit
+```
+**This Model 2 provides an accuracy of o.9 and a Kappa of 0.9** 
+This is quite good for a fast processing. But testing will certainly provide a better estimation of validity.
+The Model 1 in comparison provided a higher accuracy of 0.989+ and a Kappa of 0.986+ indicating a very good agreement.
+
+
+# Model Testing
+```{r,echo=TRUE, cache=TRUE, results="hide", warning=FALSE, message=FALSE}
+testRes <- predict(modFit,newdata=test)
+test$answer <- testRes
+predicted<-test[,c("user_name","classe","answer")]
+predicted$matched<- predicted$classe==predicted$answer
+summary(predicted)
+# Counted the right prediction (match between real outcome and predicted value) and the wrong prediction
+TP <- sum(predicted$matched)  # Number of True match
+TOT <- length(predicted$matched) # Number of observations
+FP <- TOT - TP # Number of False
+# Percentages
+(TP/TOT)*100
+(FP/TOT)*100
+TOT
+```
+        
+# Out-of-Sample Error
+
+**This result indicate that for the `r TOT` observations in the testing set we have a `r (TP/TOT)*100`% of accurate match and only `r (FP/TOT)*100`% of false.**
+
+In comparison, Model 1 achieved a 99.898% of accurate matches and a 0.102% of incorrect matches. While Model 1 is better it needed 20x longer to process. Model 2 with a processing time of a couple of minutes is producing a high level of accurary. Model 2 provided a correct answer to the 20 test cases in the second part of this assignment.
+
+## Confusion Matrix
+
+On the confusion matrix, we can see the accurate predictions on the diagonal.
+
+```{r, echo=TRUE}
+table(predicted$answer,predicted$classe)
+```
+
+# Project Test Cases
+
+Apply of this machine learning algorithm to the 20 test cases for the programming assignment provides 100% of correct answers.
+
+
+```{r,echo=TRUE, cache=TRUE, results="hide", warning=FALSE, message=FALSE}
+answers <- predict(modFit,newdata=testing)
+answers
+```
+
+
